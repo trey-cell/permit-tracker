@@ -1,0 +1,22 @@
+# Environment & secrets — NEVER commit these
+.env
+*.json
+service-account*.json
+credentials*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

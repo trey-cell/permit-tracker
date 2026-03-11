@@ -1,0 +1,36 @@
+municipalities:
+  hillsborough:
+    name: "Hillsborough County"
+    base_url: "https://aca-prod.accela.com/HCFL"
+    login_url: "https://aca-prod.accela.com/HCFL/Login.aspx"
+    dashboard_url: "https://aca-prod.accela.com/HCFL/Dashboard.aspx"
+    username_env: "ACCELA_USERNAME_HILLSBOROUGH"
+    password_env: "ACCELA_PASSWORD_HILLSBOROUGH"
+    enabled: true
+
+  pasco:
+    name: "Pasco County"
+    base_url: "https://aca-prod.accela.com/PASCO"
+    login_url: "https://aca-prod.accela.com/PASCO/Login.aspx"
+    dashboard_url: "https://aca-prod.accela.com/PASCO/Dashboard.aspx"
+    username_env: "ACCELA_USERNAME_PASCO"
+    password_env: "ACCELA_PASSWORD_PASCO"
+    enabled: false  # Enable when ready to add Pasco
+
+  pinellas:
+    name: "Pinellas County"
+    base_url: "https://aca-prod.accela.com/PINELLAS"
+    login_url: "https://aca-prod.accela.com/PINELLAS/Login.aspx"
+    dashboard_url: "https://aca-prod.accela.com/PINELLAS/Dashboard.aspx"
+    username_env: "ACCELA_USERNAME_PINELLAS"
+    password_env: "ACCELA_PASSWORD_PINELLAS"
+    enabled: false
+
+  clearwater:
+    name: "Clearwater"
+    base_url: "https://aca-prod.accela.com/CLEARWATER"
+    login_url: "https://aca-prod.accela.com/CLEARWATER/Login.aspx"
+    dashboard_url: "https://aca-prod.accela.com/CLEARWATER/Dashboard.aspx"
+    username_env: "ACCELA_USERNAME_CLEARWATER"
+    password_env: "ACCELA_PASSWORD_CLEARWATER"
+    enabled: false

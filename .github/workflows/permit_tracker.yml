@@ -1,0 +1,68 @@
+name: Permit Tracker
+
+on:
+  schedule:
+    # Runs at 8:00 AM and 4:00 PM Eastern (UTC-4 in summer, UTC-5 in winter)
+    # Adjust UTC offset if needed (12:00 UTC = 8 AM ET in summer)
+    - cron: '0 12 * * 1-5'   # Weekdays 8 AM ET
+    - cron: '0 20 * * 1-5'   # Weekdays 4 PM ET
+
+  # Also allow manual trigger from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  run-permit-tracker:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Checkout repo ─────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Set up Python ─────────────────────────────────────────────────────────
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ── Install Python dependencies ───────────────────────────────────────────
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # ── Install Playwright browsers ───────────────────────────────────────────
+      - name: Install Playwright Chromium
+        run: playwright install chromium --with-deps
+
+      # ── Run the permit tracker ────────────────────────────────────────────────
+      - name: Run permit tracker
+        env:
+          # Hillsborough County
+          ACCELA_USERNAME_HILLSBOROUGH: ${{ secrets.ACCELA_USERNAME_HILLSBOROUGH }}
+          ACCELA_PASSWORD_HILLSBOROUGH: ${{ secrets.ACCELA_PASSWORD_HILLSBOROUGH }}
+
+          # Pasco County (add when ready)
+          ACCELA_USERNAME_PASCO: ${{ secrets.ACCELA_USERNAME_PASCO }}
+          ACCELA_PASSWORD_PASCO: ${{ secrets.ACCELA_PASSWORD_PASCO }}
+
+          # Pinellas County (add when ready)
+          ACCELA_USERNAME_PINELLAS: ${{ secrets.ACCELA_USERNAME_PINELLAS }}
+          ACCELA_PASSWORD_PINELLAS: ${{ secrets.ACCELA_PASSWORD_PINELLAS }}
+
+          # Clearwater (add when ready)
+          ACCELA_USERNAME_CLEARWATER: ${{ secrets.ACCELA_USERNAME_CLEARWATER }}
+          ACCELA_PASSWORD_CLEARWATER: ${{ secrets.ACCELA_PASSWORD_CLEARWATER }}
+
+          # Google Sheets
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+
+          # Email notifications
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+
+        run: |
+          cd scraper
+          python main.py
