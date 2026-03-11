@@ -63,4 +63,7 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
 
-        run: python -m scraper.main
+        run: |
+          export PYTHONPATH="${PYTHONPATH}:$(pwd)/scraper"
+          cd scraper
+          python main.py
