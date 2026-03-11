@@ -31,8 +31,8 @@ jobs:
 
       # ── Install Playwright browsers ───────────────────────────────────────────
       - name: Install Playwright Chromium
-        run: python -m playwright install chromium --with-deps
-        
+        run: playwright install chromium --with-deps
+
       # ── Run the permit tracker ────────────────────────────────────────────────
       - name: Run permit tracker
         env:
@@ -67,3 +67,12 @@ jobs:
           export PYTHONPATH="${PYTHONPATH}:$(pwd)/scraper"
           cd scraper
           python main.py
+
+      # ── Upload debug screenshots ───────────────────────────────────────────
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshots
+          path: /tmp/screenshots/
+          if-no-files-found: ignore
