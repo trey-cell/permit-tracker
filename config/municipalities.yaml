@@ -3,7 +3,7 @@ municipalities:
     name: "Hillsborough County"
     base_url: "https://aca-prod.accela.com/HCFL"
     login_url: "https://aca-prod.accela.com/HCFL/Login.aspx"
-    dashboard_url: "https://aca-prod.accela.com/HCFL/Dashboard.aspx"
+    dashboard_url: "https://aca-prod.accela.com/HCFL/Cap/CapList.aspx?TabName=APO"
     username_env: "ACCELA_USERNAME_HILLSBOROUGH"
     password_env: "ACCELA_PASSWORD_HILLSBOROUGH"
     enabled: true
