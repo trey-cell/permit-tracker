@@ -31,7 +31,7 @@ jobs:
 
       # ── Install Playwright browsers ───────────────────────────────────────────
       - name: Install Playwright Chromium
-        run: playwright install chromium --with-deps
+        run: python -m playwright install chromium --with-deps
         
       # ── Run the permit tracker ────────────────────────────────────────────────
       - name: Run permit tracker
