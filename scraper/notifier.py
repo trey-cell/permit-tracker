@@ -11,7 +11,7 @@ import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
-from .accela_scraper import PermitRecord
+from accela_scraper import PermitRecord
 
 logger = logging.getLogger(__name__)
 
