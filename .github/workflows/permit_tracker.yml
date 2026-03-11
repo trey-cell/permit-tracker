@@ -33,10 +33,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
         
-      - name: Install system dependencies for Playwright
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2
+          sudo apt-get install -y libasound2t64
           
       - name: Install Playwright Chromium
         run: playwright install chromium --with-deps
