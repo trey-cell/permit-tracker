@@ -2,24 +2,17 @@
 accela_scraper.py
 -----------------
 Logs into an Accela Citizen Access portal using Playwright (headless browser),
-navigates to the user's My Records / Dashboard, and extracts permit details:
-  - Permit number
-  - Address
-  - Type
-  - Status
-  - Applied / Issued / Expiration dates
-  - Last inspection result
-  - Notes / comments from the municipality
+navigates to My Records, and extracts permit details.
 """
 
 import os
-import time
 import logging
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PlaywrightTimeout
 
 logger = logging.getLogger(__name__)
+
+SCREENSHOT_DIR = "/tmp/screenshots"
 
 
 @dataclass
@@ -38,11 +31,48 @@ class PermitRecord:
     detail_url: str = ""
 
 
+def _save_screenshot(page: Page, name: str):
+    """Save a debug screenshot."""
+    try:
+        os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+        path = f"{SCREENSHOT_DIR}/{name}.png"
+        page.screenshot(path=path)
+        logger.info(f"Screenshot saved: {path}")
+    except Exception as e:
+        logger.debug(f"Could not save screenshot: {e}")
+
+
+def _try_fill(page: Page, selectors: list, value: str, label: str) -> bool:
+    """Try each selector in order until one works."""
+    for sel in selectors:
+        try:
+            page.wait_for_selector(sel, timeout=5000)
+            page.fill(sel, value)
+            logger.info(f"Filled {label} using selector: {sel}")
+            return True
+        except Exception:
+            continue
+    logger.error(f"Could not find {label} field. Tried: {selectors}")
+    return False
+
+
+def _try_click(page: Page, selectors: list, label: str) -> bool:
+    """Try each selector in order until one works."""
+    for sel in selectors:
+        try:
+            page.wait_for_selector(sel, timeout=5000)
+            page.click(sel)
+            logger.info(f"Clicked {label} using selector: {sel}")
+            return True
+        except Exception:
+            continue
+    logger.error(f"Could not find {label} button. Tried: {selectors}")
+    return False
+
+
 def scrape_municipality(config: dict) -> list[PermitRecord]:
     """
     Scrape all permit records for a given municipality config.
-    config keys: name, base_url, login_url, dashboard_url,
-                 username_env, password_env
     """
     username = os.environ.get(config["username_env"], "")
     password = os.environ.get(config["password_env"], "")
@@ -64,35 +94,91 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
         page = context.new_page()
 
         try:
-            # ── Step 1: Login ──────────────────────────────────────────────────
-            logger.info(f"Logging into {municipality_name}...")
-            page.goto(config["login_url"], wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(2000)
+            # ── Step 1: Load login page ────────────────────────────────────────
+            logger.info(f"Loading login page for {municipality_name}...")
+            page.goto(config["login_url"], wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(3000)
+            _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_1_login_page")
+            logger.info(f"Login page title: {page.title()}")
+            logger.info(f"Login page URL: {page.url}")
 
-            # Fill login form — Accela uses consistent field IDs across portals
-            page.fill('input[id*="txtLoginName"], input[name*="LoginName"], #txtUserName', username)
-            page.fill('input[id*="txtPassword"], input[name*="Password"], #txtPassword', password)
-            page.click('input[id*="btnLogin"], input[type="submit"], button[type="submit"]')
-            page.wait_for_load_state("networkidle", timeout=15000)
+            # ── Step 2: Fill login form ────────────────────────────────────────
+            username_selectors = [
+                "#txtLoginName",
+                "input[name='LoginName']",
+                "input[id$='LoginName']",
+                "#txtUserName",
+                "input[type='text']",
+            ]
+            password_selectors = [
+                "#txtPassword",
+                "input[name='Password']",
+                "input[id$='Password']",
+                "input[type='password']",
+            ]
+            login_btn_selectors = [
+                "#btnLogin",
+                "input[id$='btnLogin']",
+                "input[value='Login']",
+                "input[type='submit']",
+                "button[type='submit']",
+            ]
 
-            if "Login" in page.title() or "login" in page.url:
-                logger.error(f"Login failed for {municipality_name}. Check credentials.")
+            filled_user = _try_fill(page, username_selectors, username, "username")
+            filled_pass = _try_fill(page, password_selectors, password, "password")
+
+            if not filled_user or not filled_pass:
+                _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_2_login_fill_failed")
+                logger.error(f"Could not fill login form for {municipality_name}")
+                return []
+
+            _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_2_login_filled")
+
+            clicked = _try_click(page, login_btn_selectors, "login button")
+            if not clicked:
+                _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_3_login_click_failed")
+                return []
+
+            # Wait for navigation after login
+            try:
+                page.wait_for_load_state("networkidle", timeout=20000)
+            except PlaywrightTimeout:
+                page.wait_for_load_state("load", timeout=10000)
+
+            _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_3_after_login")
+            logger.info(f"After login - Title: {page.title()}, URL: {page.url}")
+
+            if "login" in page.url.lower() or "Login" in page.title():
+                logger.error(f"Login failed for {municipality_name} — still on login page.")
                 return []
 
             logger.info(f"Logged in to {municipality_name} successfully.")
 
-            # ── Step 2: Go to My Records (Dashboard) ──────────────────────────
-            page.goto(config["dashboard_url"], wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(3000)
+            # ── Step 3: Go to My Records ───────────────────────────────────────
+            logger.info(f"Navigating to My Records: {config['dashboard_url']}")
+            page.goto(config["dashboard_url"], wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(4000)
+            _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_4_my_records")
+            logger.info(f"My Records page title: {page.title()}")
+            logger.info(f"My Records URL: {page.url}")
 
-            # ── Step 3: Collect all permit rows from the dashboard ─────────────
-            records = _parse_dashboard(page, municipality_name, config["base_url"])
+            # Log page content snippet for debugging
+            try:
+                body_text = page.inner_text("body")[:500]
+                logger.info(f"Page content preview: {body_text}")
+            except Exception:
+                pass
+
+            # ── Step 4: Parse permit rows ──────────────────────────────────────
+            records = _parse_records_page(page, municipality_name, config["base_url"])
             logger.info(f"Found {len(records)} permits in {municipality_name}.")
 
         except PlaywrightTimeout as e:
             logger.error(f"Timeout scraping {municipality_name}: {e}")
+            _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_error_timeout")
         except Exception as e:
             logger.error(f"Error scraping {municipality_name}: {e}", exc_info=True)
+            _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_error_general")
         finally:
             context.close()
             browser.close()
@@ -100,43 +186,86 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
     return records
 
 
-def _parse_dashboard(page: Page, municipality: str, base_url: str) -> list[PermitRecord]:
-    """Parse the My Records dashboard page for permit rows."""
+def _parse_records_page(page: Page, municipality: str, base_url: str) -> list[PermitRecord]:
+    """Parse the My Records page for permit rows."""
     records = []
 
-    # Wait for records table to appear
-    try:
-        page.wait_for_selector("table.ACA_Grid_Table, #tblPermitList, .portlet-content", timeout=10000)
-    except PlaywrightTimeout:
-        logger.warning("No records table found on dashboard — may be empty or layout changed.")
+    # Try multiple table selectors Accela uses
+    table_selectors = [
+        "table.ACA_Grid_Table",
+        "#tblPermitList",
+        "table[id*='GridViewBuildingPermit']",
+        "table[id*='PermitList']",
+        "table[id*='Cap']",
+        ".portlet-content table",
+        "table",
+    ]
+
+    found_table = False
+    for sel in table_selectors:
+        try:
+            page.wait_for_selector(sel, timeout=8000)
+            logger.info(f"Found table with selector: {sel}")
+            found_table = True
+            break
+        except PlaywrightTimeout:
+            continue
+
+    if not found_table:
+        logger.warning("No records table found — page may be empty or layout changed.")
+        try:
+            logger.info(f"Full page text: {page.inner_text('body')[:1000]}")
+        except Exception:
+            pass
         return records
 
-    # Grab all rows — Accela uses consistent class names
-    rows = page.query_selector_all("tr.ACA_TabRow_Odd, tr.ACA_TabRow_Even, tr[class*='TabRow']")
-    
+    # Try multiple row selectors
+    rows = []
+    row_selectors = [
+        "tr.ACA_TabRow_Odd, tr.ACA_TabRow_Even",
+        "tr[class*='TabRow']",
+        "tr[class*='Row']",
+        "table.ACA_Grid_Table tr:not(:first-child)",
+        "tbody tr",
+    ]
+
+    for sel in row_selectors:
+        try:
+            rows = page.query_selector_all(sel)
+            if rows:
+                logger.info(f"Found {len(rows)} rows with selector: {sel}")
+                break
+        except Exception:
+            continue
+
     if not rows:
-        # Try alternative selectors for newer Accela versions
-        rows = page.query_selector_all("table[id*='PermitList'] tr:not(:first-child), .grid-row")
+        logger.warning("No data rows found in table.")
+        return records
 
     for row in rows:
         try:
             cells = row.query_selector_all("td")
-            if len(cells) < 3:
+            if len(cells) < 2:
                 continue
 
-            # Extract permit number and detail link
-            permit_link = row.query_selector("a[href*='CapDetail'], a[href*='capId']")
+            # Look for permit number link
+            permit_link = row.query_selector("a[href*='CapDetail'], a[href*='capId'], a[href*='Cap/']")
             permit_number = permit_link.inner_text().strip() if permit_link else ""
+
             detail_url = ""
             if permit_link:
                 href = permit_link.get_attribute("href") or ""
                 detail_url = href if href.startswith("http") else base_url + "/" + href.lstrip("/")
 
             if not permit_number:
+                # Try getting first cell text as permit number
+                permit_number = cells[0].inner_text().strip()
+
+            if not permit_number or permit_number.lower() in ["permit number", "record number", ""]:
                 continue
 
-            # Map cell text to fields (order varies slightly by portal version)
             cell_texts = [c.inner_text().strip() for c in cells]
+            logger.debug(f"Row cells: {cell_texts}")
 
             record = PermitRecord(
                 permit_number=permit_number,
@@ -148,10 +277,6 @@ def _parse_dashboard(page: Page, municipality: str, base_url: str) -> list[Permi
                 detail_url=detail_url,
             )
 
-            # ── Step 4: Drill into detail page for more info ───────────────────
-            if detail_url:
-                _enrich_from_detail(page, record, detail_url)
-
             records.append(record)
 
         except Exception as e:
@@ -159,63 +284,6 @@ def _parse_dashboard(page: Page, municipality: str, base_url: str) -> list[Permi
             continue
 
     return records
-
-
-def _enrich_from_detail(page: Page, record: PermitRecord, detail_url: str):
-    """Visit the permit detail page to get inspection history and notes."""
-    try:
-        page.goto(detail_url, wait_until="domcontentloaded", timeout=20000)
-        page.wait_for_timeout(2000)
-
-        # ── Expiration / Issued dates ──────────────────────────────────────────
-        for label_text in ["Expiration Date", "Expire Date"]:
-            el = page.query_selector(f"span:text('{label_text}') + span, td:text('{label_text}') + td")
-            if el:
-                record.expiration_date = el.inner_text().strip()
-                break
-
-        for label_text in ["Issued Date", "Issue Date"]:
-            el = page.query_selector(f"span:text('{label_text}') + span, td:text('{label_text}') + td")
-            if el:
-                record.issued_date = el.inner_text().strip()
-                break
-
-        # ── Inspections tab ────────────────────────────────────────────────────
-        insp_tab = page.query_selector("a[href*='Inspection'], li:text('Inspections')")
-        if insp_tab:
-            insp_tab.click()
-            page.wait_for_timeout(2000)
-            insp_rows = page.query_selector_all(
-                "table[id*='Inspection'] tr:not(:first-child), .inspection-row"
-            )
-            if insp_rows:
-                # Most recent inspection is usually first
-                first = insp_rows[0].query_selector_all("td")
-                if first:
-                    texts = [c.inner_text().strip() for c in first]
-                    record.last_inspection = _find_cell(texts, 0)
-                    record.inspection_result = _find_cell(texts, 2)
-
-        # ── Notes / Comments ───────────────────────────────────────────────────
-        notes_tab = page.query_selector("a[href*='Notes'], a[href*='Comment'], li:text('Notes')")
-        if notes_tab:
-            notes_tab.click()
-            page.wait_for_timeout(2000)
-            note_els = page.query_selector_all(
-                ".ACA_NoteText, td[id*='comment'], .note-text, textarea[id*='Notes']"
-            )
-            note_texts = [n.inner_text().strip() for n in note_els if n.inner_text().strip()]
-            record.notes = " | ".join(note_texts[:3])  # Keep top 3 notes
-
-    except Exception as e:
-        logger.debug(f"Could not enrich detail for {record.permit_number}: {e}")
-
-    finally:
-        # Navigate back
-        try:
-            page.go_back(wait_until="domcontentloaded", timeout=10000)
-        except Exception:
-            pass
 
 
 def _find_cell(texts: list, index: int) -> str:
