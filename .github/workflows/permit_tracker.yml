@@ -34,9 +34,7 @@ jobs:
         run: pip install -r requirements.txt
         
       - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libasound2t64
+        run: sudo apt-get update && sudo apt-get install -y libasound2t64
           
       - name: Install Playwright Chromium
         run: playwright install chromium --with-deps
