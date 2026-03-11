@@ -30,17 +30,8 @@ jobs:
         run: pip install -r requirements.txt
 
       # ── Install Playwright browsers ───────────────────────────────────────────
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-        
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libasound2t64
-          
       - name: Install Playwright Chromium
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libasound2t64
-          playwright install chromium --with-deps
+        run: playwright install chromium --with-deps
         
       # ── Run the permit tracker ────────────────────────────────────────────────
       - name: Run permit tracker
