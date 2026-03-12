@@ -1,4 +1,4 @@
- """
+"""
 accela_scraper.py
 -----------------
 Logs into an Accela Citizen Access portal using Playwright (headless browser),
