@@ -1,4 +1,4 @@
-"""
+ """
 accela_scraper.py
 -----------------
 Logs into an Accela Citizen Access portal using Playwright (headless browser),
@@ -215,15 +215,32 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
             # ── Step 4: Click login button ─────────────────────────────────────
             _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_3_login_filled")
 
-            login_btn_selectors = [
-                "#ctl00_PlaceHolderMain_LoginSection_btnLogin",
-                "#btnLogin",
-                "input[id$='btnLogin']",
-                "input[value='Login']",
-                "input[type='submit']",
-                "button[type='submit']",
-            ]
-            clicked = _try_click(active_frame, login_btn_selectors, "login button")
+            # Login button is an Angular PrimeNG button — use get_by_role (most reliable)
+            clicked = False
+            for btn_name in ["Sign In", "Log In", "LOGIN", "SIGN IN", "Submit"]:
+                try:
+                    btn = active_frame.get_by_role("button", name=btn_name)
+                    btn.wait_for(state="visible", timeout=5000)
+                    btn.click()
+                    clicked = True
+                    logger.info(f"Clicked login button via get_by_role name='{btn_name}'")
+                    break
+                except Exception:
+                    pass
+
+            # Fallback: CSS selectors
+            if not clicked:
+                login_btn_selectors = [
+                    "button.ACA_Button",
+                    "button[pbutton]",
+                    "button.p-button",
+                    "#btnLogin",
+                    "input[type='submit']",
+                    "button[type='submit']",
+                    "button",
+                ]
+                clicked = _try_click(active_frame, login_btn_selectors, "login button")
+
             if not clicked:
                 _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_3_login_click_failed")
                 return []
