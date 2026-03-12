@@ -102,32 +102,111 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
             logger.info(f"Login page title: {page.title()}")
             logger.info(f"Login page URL: {page.url}")
 
-            # ── Step 2: Fill login form ────────────────────────────────────────
-            # NOTE: avoid broad selectors like input[type='text'] which match the
-            # site search box before the actual login form username field.
-            username_selectors = [
-                "#txtLoginName",
-                "input[name='LoginName']",
-                "input[id$='LoginName']",
-                "#txtUserName",
-                "input[name='UserName']",
-                "input[id$='UserName']",
-                "input[id*='loginUser']",
-                "input[autocomplete='username']",
-                # XPath: first text input that follows a label containing USERNAME or EMAIL
-                "xpath=//label[contains(translate(., 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'USERNAME') or contains(translate(., 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'USER NAME') or contains(translate(., 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'EMAIL')]/following::input[@type='text' or @type='email'][1]",
-                # XPath: text input inside whatever container has 'sign' in its class/id
-                "xpath=//div[contains(translate(@class,'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ'),'SIGN') or contains(translate(@id,'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ'),'SIGN')]//input[@type='text' or @type='email'][1]",
-                # XPath: second text input on page (first is usually search box)
-                "xpath=(//input[@type='text'])[2]",
-            ]
-            password_selectors = [
-                "input[type='password']",
-                "#txtPassword",
-                "input[name='Password']",
-                "input[id$='Password']",
-                "input[autocomplete='current-password']",
-            ]
+            # ── Step 2: Inspect page inputs for debugging ──────────────────────
+            # Log all visible inputs so we can see exactly what's available
+            try:
+                inputs_info = page.evaluate("""() => {
+                    const inputs = document.querySelectorAll('input');
+                    return Array.from(inputs).map(inp => ({
+                        id: inp.id,
+                        name: inp.name,
+                        type: inp.type,
+                        placeholder: inp.placeholder,
+                        autocomplete: inp.autocomplete,
+                        visible: inp.offsetParent !== null
+                    }));
+                }""")
+                logger.info(f"All inputs on page: {inputs_info}")
+            except Exception as e:
+                logger.debug(f"Could not inspect inputs: {e}")
+
+            _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_2_before_fill")
+
+            # ── Step 3: Fill login form ────────────────────────────────────────
+            # Try get_by_label first (most reliable), then fall back to selectors
+            username_filled = False
+
+            # Method 1: Playwright label-based (searches by visible label text)
+            for label_text in ["USERNAME OR EMAIL", "Username or Email", "Username", "Email", "User Name"]:
+                try:
+                    locator = page.get_by_label(label_text, exact=False)
+                    locator.wait_for(timeout=3000)
+                    locator.fill(username)
+                    logger.info(f"Filled username using get_by_label: {label_text}")
+                    username_filled = True
+                    break
+                except Exception:
+                    continue
+
+            # Method 2: CSS/XPath selectors
+            if not username_filled:
+                username_selectors = [
+                    "#txtLoginName",
+                    "input[name='LoginName']",
+                    "input[id$='LoginName']",
+                    "#txtUserName",
+                    "input[name='UserName']",
+                    "input[id$='UserName']",
+                    "input[id*='loginUser']",
+                    "input[type='email']",
+                    "input[autocomplete='username']",
+                    "input[autocomplete='email']",
+                ]
+                for sel in username_selectors:
+                    try:
+                        page.wait_for_selector(sel, timeout=3000)
+                        page.fill(sel, username)
+                        logger.info(f"Filled username using selector: {sel}")
+                        username_filled = True
+                        break
+                    except Exception:
+                        continue
+
+            if not username_filled:
+                _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_login_fill_failed")
+                logger.error(f"Could not find username field.")
+                return []
+
+            # Password field
+            password_filled = False
+
+            for label_text in ["PASSWORD", "Password"]:
+                try:
+                    locator = page.get_by_label(label_text, exact=False)
+                    locator.wait_for(timeout=3000)
+                    locator.fill(password)
+                    logger.info(f"Filled password using get_by_label: {label_text}")
+                    password_filled = True
+                    break
+                except Exception:
+                    continue
+
+            if not password_filled:
+                password_selectors = [
+                    "input[type='password']",
+                    "#txtPassword",
+                    "input[name='Password']",
+                    "input[id$='Password']",
+                    "input[autocomplete='current-password']",
+                ]
+                for sel in password_selectors:
+                    try:
+                        page.wait_for_selector(sel, timeout=3000)
+                        page.fill(sel, password)
+                        logger.info(f"Filled password using selector: {sel}")
+                        password_filled = True
+                        break
+                    except Exception:
+                        continue
+
+            if not password_filled:
+                _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_login_fill_failed")
+                logger.error(f"Could not find password field.")
+                return []
+
+            # ── Step 4: Click login button ─────────────────────────────────────
+            _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_3_login_filled")
+
             login_btn_selectors = [
                 "#btnLogin",
                 "input[id$='btnLogin']",
@@ -135,17 +214,6 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
                 "input[type='submit']",
                 "button[type='submit']",
             ]
-
-            filled_user = _try_fill(page, username_selectors, username, "username")
-            filled_pass = _try_fill(page, password_selectors, password, "password")
-
-            if not filled_user or not filled_pass:
-                _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_2_login_fill_failed")
-                logger.error(f"Could not fill login form for {municipality_name}")
-                return []
-
-            _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_2_login_filled")
-
             clicked = _try_click(page, login_btn_selectors, "login button")
             if not clicked:
                 _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_3_login_click_failed")
