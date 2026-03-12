@@ -125,8 +125,6 @@ def update_sheet(records: list[PermitRecord]) -> list[PermitRecord]:
         rows_to_write.append((rec.permit_number, row))
 
     # Write updates — update existing rows, append new ones
-    all_permit_numbers = [r[0]["Permit #"] for r in enumerate(existing_rows)]
-    
     # Get current row count for position lookup
     all_values = ws.get_all_values()
     permit_col = [r[0] for r in all_values]  # Column A (Permit #)
