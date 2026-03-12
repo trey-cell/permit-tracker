@@ -58,34 +58,57 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
     }
 
     navigation_goal = f"""
-    You are logging into an Accela Citizen Access government permit portal.
+     You are logging into the Hillsborough County Accela Citizen Access permit portal.
+    Follow these steps exactly in order:
 
-    Follow these steps exactly:
-    1. The login form may be inside an iframe or embedded panel — look visually for username/password fields.
-    2. Enter the username: {username}
-    3. Enter the password: {password}
-    4. Click the Sign In or Login button.
-    5. After a successful login, navigate directly to this URL: {config['dashboard_url']}
-    6. Wait for the permits table to fully load before extracting data.
-    7. If you see a message saying "No records found", that is valid — just note zero permits.
+    STEP 1 - LOGIN:
+    - The login form is inside an embedded panel or iframe on the page
+    - Find the username and password fields visually
+    - Enter username: {username}
+    - Enter password: {password}
+    - Click the Sign In button
+    - Wait for the homepage to fully load after login
 
-    Important: The portal uses Angular components. Look for what is visually on screen.
-    Do NOT stop early — complete all steps including navigating to the My Records URL.
+    STEP 2 - NAVIGATE TO COLLECTIONS:
+    - After login you will be on the homepage
+    - Look at the top right of the page — there is a navigation bar with multiple items
+    - You will see options like: Logout, My Account, Cart, Collections, and "Logged in as Trey Rhyne"
+    - Click on "Collections" in that top right navigation bar
+    - Wait for the Collections page to fully load
+
+    STEP 3 - OPEN EACH COLLECTION AND EXTRACT PERMIT DATA:
+    - On the Collections page you will see a table with columns: Date Modified, Name, Description, Number of Records
+    - Each row in that table is a saved collection of permits
+    - For EACH row in the collections table:
+        a. Click on the collection NAME (it is a clickable link)
+        b. Wait for the permit records table to load — it will show columns including:
+           Date, Record Number, Record Type, Address, Description, Project Name, Expiration Date, Status
+        c. Record the data from EVERY permit row in that table
+        d. Click the browser back button to return to the Collections page
+        e. Move on to the next collection and repeat
+
+    - Do NOT stop until you have clicked through every collection and recorded all permits
+    - If a collection has 0 records, skip it and move to the next one
+
+    Important: The portal uses Angular components. Always look for what is visually on screen.
     """
 
     data_extraction_goal = """
-    Extract ALL permit records visible in the table on the My Records page.
+    Extract ALL permit records found across ALL collections.
 
-    For each row in the permits table capture:
-    - permit_number: The permit or record number (usually the first column, often a clickable link)
-    - address: The full property address for this permit
-    - permit_type: The type of work (e.g., Building Permit, Electrical, Plumbing, Re-Roof)
-    - status: The current permit status (e.g., Issued, Under Review, Approved, Expired, Finaled)
-    - applied_date: The date the application was submitted (MM/DD/YYYY format)
-    - expiration_date: The date the permit expires (MM/DD/YYYY format)
+    For each permit record in each collection capture these exact fields:
+    - permit_number: The "Record Number" column — this is the unique permit identifier (e.g., BCP-123456-2025)
+    - permit_type: The "Record Type" column — the type of permit (e.g., Building, Electrical, Plumbing, Re-Roof)
+    - address: The "Address" column — the full property street address for this permit
+    - expiration_date: The "Expiration Date" column — the date the permit expires in MM/DD/YYYY format
+    - status: The "Status" column — current permit status (e.g., Issued, Approved, Under Review, Expired, Finaled)
 
-    Return ALL rows visible — do not skip any rows.
-    If a column is not present for a specific permit, return an empty string for that field.
+    Rules:
+    - Record Number = Permit Number — use the Record Number column for permit_number
+    - Do NOT include header rows, blank rows, or rows without a Record Number
+    - If Expiration Date is blank or not shown, return an empty string
+    - Capture permits from ALL collections, not just the first one
+    - Do not skip any permit rows
     """
 
     extracted_information_schema = {
