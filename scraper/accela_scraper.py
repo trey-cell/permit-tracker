@@ -245,16 +245,32 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
                 _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_3_login_click_failed")
                 return []
 
-            # Wait for navigation after login
+            # Wait for Angular iframe to process login and redirect parent page
+            # Angular posts credentials async, then redirects — need to wait for URL change
             try:
-                page.wait_for_load_state("networkidle", timeout=20000)
+                page.wait_for_url(
+                    lambda url: "login" not in url.lower(),
+                    timeout=20000
+                )
+                logger.info("Login redirect detected.")
             except PlaywrightTimeout:
-                page.wait_for_load_state("load", timeout=10000)
+                # URL didn't change — take screenshot to see what happened
+                pass
 
             _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_3_after_login")
             logger.info(f"After login - Title: {page.title()}, URL: {page.url}")
 
-            if "login" in page.url.lower() or "Login" in page.title():
+            if "login" in page.url.lower():
+                # Check if there's an error message in the iframe
+                try:
+                    login_frame = next(
+                        (f for f in page.frames if "login-panel" in f.url), None
+                    )
+                    if login_frame:
+                        error_text = login_frame.inner_text("body")[:300]
+                        logger.error(f"Login error message: {error_text}")
+                except Exception:
+                    pass
                 logger.error(f"Login failed for {municipality_name} — still on login page.")
                 return []
 
