@@ -61,7 +61,7 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
      You are logging into the Hillsborough County Accela Citizen Access permit portal.
     Follow these steps exactly in order:
 
-    STEP 1 - LOGIN:
+  STEP 1 - LOGIN:
     - The login form is inside an embedded panel or iframe on the page
     - Find the username and password fields visually
     - Enter username: {username}
@@ -75,19 +75,50 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
     - You will see options like: Logout, My Account, Cart, Collections, and "Logged in as Trey Rhyne"
     - Click on "Collections" in that top right navigation bar
 
-    STEP 3 - OPEN EACH COLLECTION AND EXTRACT PERMIT DATA:
-    - On the Collections page scroll down and you will see a table with columns: Date Modified, Name, Description, Number of Records
-    - Go to the "Name" Column which it will show you all Addresses of active permits listed in rows.
-    - For EACH row in the Collections Table:
-        a. Click on the Address NAME (it is a clickable link)
-        b. Wait for the permit records table to load — it will show columns including:
-           Date, Record Number, Record Type, Address, Description, Project Name, Expiration Date, Status
-        c. Record the data from EVERY permit row in that table
-        d. Click the browser back button to return to the Collections page
-        e. Move on to the next Address and repeat
+    STEP 3 - READ ALL COLLECTION NAMES BEFORE CLICKING ANYTHING:
+    - On the Collections page, scroll down until you see the table
+    - The table has columns: Date Modified, Name, Description, Number of Records
+    - The "Name" column shows all addresses of active permits listed in rows
+    - Before clicking anything, count and note ALL rows in the table (example: row 1 = 12137 Stonelake, row 2 = 12501 Clydesdale, row 3 = 4812 Rambling, row 4 = 6145 Durant Rd)
+    - You must visit EVERY row — do not stop after the first one
 
-    - Do NOT stop until you have clicked through every Address and recorded all permits
-    - If a Address has 0 records, skip it and move to the next one
+    STEP 4 - VISIT ADDRESS ROW 1 (first row only):
+    - Click the address NAME link in the FIRST row of the collections table
+    - Wait for the permit records table to load — it will show columns:
+      Date, Record Number, Record Type, Address, Description, Project Name, Expiration Date, Status
+    - Read and remember ALL permit data shown on this page
+    - When done reading, click the BACK button to return to the Collections page
+    - Wait for the Collections page to fully reload before continuing
+
+    STEP 5 - VISIT ADDRESS ROW 2 (second row only):
+    - You are back on the Collections page
+    - Click the address NAME link in the SECOND row — this is a DIFFERENT address than step 4
+    - Wait for the permit records table to load
+    - Read and remember ALL permit data shown on this page
+    - When done reading, click the BACK button to return to the Collections page
+    - Wait for the Collections page to fully reload before continuing
+
+    STEP 6 - VISIT ADDRESS ROW 3 (third row only):
+    - You are back on the Collections page
+    - Click the address NAME link in the THIRD row — this is a DIFFERENT address than steps 4 and 5
+    - Wait for the permit records table to load
+    - Read and remember ALL permit data shown on this page
+    - When done reading, click the BACK button to return to the Collections page
+    - Wait for the Collections page to fully reload before continuing
+
+    STEP 7 - VISIT ADDRESS ROW 4 (fourth row only):
+    - You are back on the Collections page
+    - Click the address NAME link in the FOURTH row — this is a DIFFERENT address than all previous steps
+    - Wait for the permit records table to load
+    - Read and remember ALL permit data shown on this page
+    - You are now done navigating — proceed to extract all collected permit data
+
+    CRITICAL RULES:
+    - Each step must click a DIFFERENT row than all previous steps — never click the same address twice
+    - Keep track of which row number you are on — row 1, row 2, row 3, row 4, etc.
+    - If you find yourself on a page you already visited, go back and click the next row you have NOT visited yet
+    - If there are more than 4 addresses, continue the same pattern for rows 5, 6, etc.
+    - If an address row has 0 permit records, go back and continue to the next row
 
     Important: The portal uses Angular components. Always look for what is visually on screen.
     """
@@ -109,7 +140,6 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
     - Capture permits from ALL collections, not just the first one
     - Do not skip any permit rows
     """
-
     extracted_information_schema = {
         "type": "object",
         "properties": {
