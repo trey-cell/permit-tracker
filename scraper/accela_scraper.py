@@ -103,18 +103,30 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
             logger.info(f"Login page URL: {page.url}")
 
             # ── Step 2: Fill login form ────────────────────────────────────────
+            # NOTE: avoid broad selectors like input[type='text'] which match the
+            # site search box before the actual login form username field.
             username_selectors = [
                 "#txtLoginName",
                 "input[name='LoginName']",
                 "input[id$='LoginName']",
                 "#txtUserName",
-                "input[type='text']",
+                "input[name='UserName']",
+                "input[id$='UserName']",
+                "input[id*='loginUser']",
+                "input[autocomplete='username']",
+                # XPath: first text input that follows a label containing USERNAME or EMAIL
+                "xpath=//label[contains(translate(., 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'USERNAME') or contains(translate(., 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'USER NAME') or contains(translate(., 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'EMAIL')]/following::input[@type='text' or @type='email'][1]",
+                # XPath: text input inside whatever container has 'sign' in its class/id
+                "xpath=//div[contains(translate(@class,'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ'),'SIGN') or contains(translate(@id,'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ'),'SIGN')]//input[@type='text' or @type='email'][1]",
+                # XPath: second text input on page (first is usually search box)
+                "xpath=(//input[@type='text'])[2]",
             ]
             password_selectors = [
+                "input[type='password']",
                 "#txtPassword",
                 "input[name='Password']",
                 "input[id$='Password']",
-                "input[type='password']",
+                "input[autocomplete='current-password']",
             ]
             login_btn_selectors = [
                 "#btnLogin",
