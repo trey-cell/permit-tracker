@@ -77,18 +77,18 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
     - Wait for the Collections page to fully load
 
     STEP 3 - OPEN EACH COLLECTION AND EXTRACT PERMIT DATA:
-    - On the Collections page you will see a table with columns: Date Modified, Name, Description, Number of Records
-    - Each row in that table is a saved collection of permits
-    - For EACH row in the collections table:
-        a. Click on the collection NAME (it is a clickable link)
+    - On the Collections page scroll down and you will see a table with columns: Date Modified, Name, Description, Number of Records
+    - Go to the "Name" Column which it will show you all Addresses of active permits listed in rows.
+    - For EACH row in the Collections Table:
+        a. Click on the Address NAME (it is a clickable link)
         b. Wait for the permit records table to load — it will show columns including:
            Date, Record Number, Record Type, Address, Description, Project Name, Expiration Date, Status
         c. Record the data from EVERY permit row in that table
         d. Click the browser back button to return to the Collections page
-        e. Move on to the next collection and repeat
+        e. Move on to the next Address and repeat
 
-    - Do NOT stop until you have clicked through every collection and recorded all permits
-    - If a collection has 0 records, skip it and move to the next one
+    - Do NOT stop until you have clicked through every Address and recorded all permits
+    - If a Address has 0 records, skip it and move to the next one
 
     Important: The portal uses Angular components. Always look for what is visually on screen.
     """
