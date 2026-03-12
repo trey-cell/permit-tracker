@@ -102,98 +102,106 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
             logger.info(f"Login page title: {page.title()}")
             logger.info(f"Login page URL: {page.url}")
 
-            # ── Step 2: Inspect page inputs for debugging ──────────────────────
-            # Log all visible inputs so we can see exactly what's available
+            # ── Step 2: Wait for full JS load & inspect page ───────────────────
             try:
-                inputs_info = page.evaluate("""() => {
-                    const inputs = document.querySelectorAll('input');
-                    return Array.from(inputs).map(inp => ({
-                        id: inp.id,
-                        name: inp.name,
-                        type: inp.type,
-                        placeholder: inp.placeholder,
-                        autocomplete: inp.autocomplete,
-                        visible: inp.offsetParent !== null
-                    }));
-                }""")
-                logger.info(f"All inputs on page: {inputs_info}")
-            except Exception as e:
-                logger.debug(f"Could not inspect inputs: {e}")
+                page.wait_for_load_state("networkidle", timeout=15000)
+            except Exception:
+                pass
+            page.wait_for_timeout(2000)
+
+            # Log all frames on page
+            frames = page.frames
+            logger.info(f"Frames on page: {[f.url for f in frames]}")
+
+            # Log all inputs across ALL frames
+            for i, frame in enumerate(frames):
+                try:
+                    inputs_info = frame.evaluate("""() => {
+                        const inputs = document.querySelectorAll('input');
+                        return Array.from(inputs).map(inp => ({
+                            id: inp.id,
+                            name: inp.name,
+                            type: inp.type,
+                            placeholder: inp.placeholder,
+                            autocomplete: inp.autocomplete,
+                            visible: inp.offsetParent !== null
+                        }));
+                    }""")
+                    logger.info(f"Frame {i} ({frame.url}) inputs: {inputs_info}")
+                except Exception as e:
+                    logger.info(f"Frame {i} ({frame.url}) could not be inspected: {e}")
 
             _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_2_before_fill")
 
-            # ── Step 3: Fill login form ────────────────────────────────────────
-            # Try get_by_label first (most reliable), then fall back to selectors
+            # ── Step 3: Fill login form (try main page + all iframes) ──────────
             username_filled = False
+            password_filled = False
+            active_frame = None
 
-            # Method 1: Playwright label-based (searches by visible label text)
-            for label_text in ["USERNAME OR EMAIL", "Username or Email", "Username", "Email", "User Name"]:
-                try:
-                    locator = page.get_by_label(label_text, exact=False)
-                    locator.wait_for(timeout=3000)
-                    locator.fill(username)
-                    logger.info(f"Filled username using get_by_label: {label_text}")
-                    username_filled = True
+            all_frames = [page] + list(page.frames[1:])  # main page first, then iframes
+
+            for frame in all_frames:
+                if username_filled:
                     break
-                except Exception:
-                    continue
+                frame_url = frame.url if hasattr(frame, 'url') else 'main'
 
-            # Method 2: CSS/XPath selectors
-            if not username_filled:
-                username_selectors = [
-                    "#txtLoginName",
-                    "input[name='LoginName']",
-                    "input[id$='LoginName']",
-                    "#txtUserName",
-                    "input[name='UserName']",
-                    "input[id$='UserName']",
-                    "input[id*='loginUser']",
-                    "input[type='email']",
-                    "input[autocomplete='username']",
-                    "input[autocomplete='email']",
-                ]
-                for sel in username_selectors:
+                # Try by label first
+                for label_text in ["USERNAME OR EMAIL", "Username or Email", "Username", "User Name", "Email"]:
                     try:
-                        page.wait_for_selector(sel, timeout=3000)
-                        page.fill(sel, username)
-                        logger.info(f"Filled username using selector: {sel}")
+                        locator = frame.get_by_label(label_text, exact=False)
+                        locator.wait_for(timeout=2000)
+                        locator.fill(username)
+                        logger.info(f"Filled username via get_by_label '{label_text}' in frame: {frame_url}")
                         username_filled = True
+                        active_frame = frame
                         break
                     except Exception:
                         continue
 
+                # Try by selector
+                if not username_filled:
+                    for sel in ["#ctl00_PlaceHolderMain_LoginSection_txtUserName",
+                                "input[id*='UserName']", "input[id*='LoginName']",
+                                "input[name*='UserName']", "input[name*='LoginName']",
+                                "input[type='email']", "input[autocomplete='username']"]:
+                        try:
+                            frame.wait_for_selector(sel, timeout=2000)
+                            frame.fill(sel, username)
+                            logger.info(f"Filled username via selector '{sel}' in frame: {frame_url}")
+                            username_filled = True
+                            active_frame = frame
+                            break
+                        except Exception:
+                            continue
+
             if not username_filled:
                 _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_login_fill_failed")
-                logger.error(f"Could not find username field.")
+                logger.error(f"Could not find username field in any frame.")
                 return []
 
-            # Password field
-            password_filled = False
+            # Fill password in same frame
+            frame = active_frame
+            frame_url = frame.url if hasattr(frame, 'url') else 'main'
 
             for label_text in ["PASSWORD", "Password"]:
                 try:
-                    locator = page.get_by_label(label_text, exact=False)
-                    locator.wait_for(timeout=3000)
+                    locator = frame.get_by_label(label_text, exact=False)
+                    locator.wait_for(timeout=2000)
                     locator.fill(password)
-                    logger.info(f"Filled password using get_by_label: {label_text}")
+                    logger.info(f"Filled password via get_by_label '{label_text}' in frame: {frame_url}")
                     password_filled = True
                     break
                 except Exception:
                     continue
 
             if not password_filled:
-                password_selectors = [
-                    "input[type='password']",
-                    "#txtPassword",
-                    "input[name='Password']",
-                    "input[id$='Password']",
-                    "input[autocomplete='current-password']",
-                ]
-                for sel in password_selectors:
+                for sel in ["#ctl00_PlaceHolderMain_LoginSection_txtPassword",
+                            "input[id*='Password']", "input[name*='Password']",
+                            "input[type='password']", "input[autocomplete='current-password']"]:
                     try:
-                        page.wait_for_selector(sel, timeout=3000)
-                        page.fill(sel, password)
-                        logger.info(f"Filled password using selector: {sel}")
+                        frame.wait_for_selector(sel, timeout=2000)
+                        frame.fill(sel, password)
+                        logger.info(f"Filled password via selector '{sel}' in frame: {frame_url}")
                         password_filled = True
                         break
                     except Exception:
@@ -208,13 +216,14 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
             _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_3_login_filled")
 
             login_btn_selectors = [
+                "#ctl00_PlaceHolderMain_LoginSection_btnLogin",
                 "#btnLogin",
                 "input[id$='btnLogin']",
                 "input[value='Login']",
                 "input[type='submit']",
                 "button[type='submit']",
             ]
-            clicked = _try_click(page, login_btn_selectors, "login button")
+            clicked = _try_click(active_frame, login_btn_selectors, "login button")
             if not clicked:
                 _save_screenshot(page, f"{municipality_name.replace(' ', '_')}_3_login_click_failed")
                 return []
