@@ -74,7 +74,6 @@ def scrape_municipality(config: dict) -> list[PermitRecord]:
     - Look at the top right of the page — there is a navigation bar with multiple items
     - You will see options like: Logout, My Account, Cart, Collections, and "Logged in as Trey Rhyne"
     - Click on "Collections" in that top right navigation bar
-    - Wait for the Collections page to fully load
 
     STEP 3 - OPEN EACH COLLECTION AND EXTRACT PERMIT DATA:
     - On the Collections page scroll down and you will see a table with columns: Date Modified, Name, Description, Number of Records
